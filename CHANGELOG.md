@@ -1,5 +1,11 @@
 # unwrapped
 
+## 0.1.1
+
+### Patch Changes
+
+- 2606226: added files tin .npmignore
+
 ## 0.1.0
 
 ### Minor Changes
