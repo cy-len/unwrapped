@@ -1,74 +1,96 @@
-import { defineComponent, ref, watch, onUnmounted, h, type VNode } from "vue"
-import type { AsyncResult, AsyncResultState } from "unwrapped/core"
+import { defineComponent, watch, h, type VNode } from "vue"
+import type { AsyncResult, ErrorBase } from "unwrapped/core"
+import { useAsyncResultRef } from "../composables"
 
+/**
+ * A Vue component that displays different content based on the state of an AsyncResult.
+ * It supports slots for 'loading', 'error', 'success' (default), and 'idle' states.
+ * 
+ * @example
+ * <AsyncResultLoader :result="myAsyncResult">
+ *   <template #loading>
+ *     <div>Loading data...</div>
+ *   </template>
+ *   <template #error="{ error }">
+ *     <div>Error occurred: {{ error.message }}</div>
+ *   </template>
+ *   <template #default="{ value }">
+ *     <div>Data loaded: {{ value }}</div>
+ *   </template>
+ *   <template #idle>
+ *     <div>Waiting to start...</div>
+ *   </template>
+ * </AsyncResultLoader>
+ */
 export const AsyncResultLoader = defineComponent({
     name: "AsyncResultLoader",
 
     props: {
         result: {
-            type: Object as () => AsyncResult<unknown, unknown>,
+            type: Object as () => AsyncResult<unknown>,
             required: true
         }
     },
 
     setup(props, { slots }) {
-        const state = ref<AsyncResultState<unknown, unknown>>(props.result.state)
-        let unlisten: (() => void) | null = null
-
-        // Unsubscribe on destroy
-        onUnmounted(() => {
-            if (unlisten) unlisten()
-        })
+        let resultRef = useAsyncResultRef(props.result);
 
         // Watch for prop changes & update listener
         watch(
             () => props.result,
-            (newResult) => {
-                if (unlisten) unlisten()
-                state.value = newResult.state
-                unlisten = newResult.listen((res) => {
-                    state.value = res.state
-                })
+            (newResult, oldResult) => {
+                if (newResult === oldResult) return;
+                resultRef = useAsyncResultRef(newResult);
             },
             { immediate: true }
         )
 
         return () => {
-            const s = state.value
+            const s = resultRef.value.state;
 
             // Choose what to render based on status
             switch (s.status) {
                 case "loading":
                     return slots.loading
                         ? slots.loading()
-                        : h("div", { class: "loading" }, "Loading…")
+                        : h("div", { class: "loading" }, "Loading…");
 
                 case "error":
                     return slots.error
                         ? slots.error({ error: s.error })
-                        : h("div", { class: "error" }, `Error: ${s.error}`)
+                        : h("div", { class: "error" }, `Error: ${s.error}`);
 
                 case "success":
                     return slots.default
                         ? slots.default({ value: s.value })
-                        : null
+                        : null;
 
                 default:
                     // "idle"
                     return slots.idle
                         ? slots.idle()
-                        : h("div", { class: "idle" }, "Idle")
+                        : h("div", { class: "idle" }, "Idle");
             }
         }
     }
 })
 
-interface CustomSlots<E> {
+
+
+interface CustomSlots<E extends ErrorBase = ErrorBase> {
     loading?: () => VNode;
     error?: (props: { error: E }) => VNode;
 }
 
-export function buildCustomAsyncResultLoader<T, E>(slots: CustomSlots<E>) {
+/**
+ * Builds a custom AsyncResultLoader component with predefined slots for loading and error states.
+ * 
+ * Useful for creating reusable components with consistent loading and error handling UI (eg. framework-specific spinners, etc...).
+ * 
+ * @param slots the custom slots for loading and error states
+ * @returns a Vue component that uses the provided slots
+ */
+export function buildCustomAsyncResultLoader<T, E extends ErrorBase = ErrorBase>(slots: CustomSlots<E>) {
     const comp = defineComponent({
         name: "CustomAsyncResultLoader",
         props: {

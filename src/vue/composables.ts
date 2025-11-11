@@ -1,106 +1,159 @@
-import { computed, onUnmounted, ref, toRef, triggerRef, watch, type Ref, type WatchSource } from "vue";
-import { AsyncResult, type FlatChainFunction, type Result } from "unwrapped/core";
+import { onUnmounted, ref, triggerRef, watch, type Ref, type WatchSource } from "vue";
+import { AsyncResult, ErrorBase, type Action, type AsyncResultGenerator, type FlatChainStep, type Result } from "unwrapped/core";
 
-export function useAsyncResultRef<T, E>(asyncResult: AsyncResult<T, E>) {
-  const state = ref<AsyncResult<T, E>>(asyncResult) as Ref<AsyncResult<T, E>>;
 
-  const unsub = asyncResult.listen(() => {
-    triggerRef(state);
-  });
+// === Vue specific types ===
 
-  onUnmounted(() => {
-    unsub();
-  });
-
-  return state;
+interface ReactiveProcessOptions {
+    immediate: boolean;
 }
 
-export function useReactiveResult<T, E, Inputs>(source: WatchSource<Inputs>, pipe: FlatChainFunction<Inputs, T, E>, options:{ immediate: boolean } = { immediate: true }): Ref<AsyncResult<T, E>> {
-  const result = new AsyncResult<T, E>();
-  const resultRef = useAsyncResultRef(result);
 
-  let unsub: (() => void) | null = null;
 
-  watch(source, (newInputs) => {
-    unsub?.();
-    unsub = result.mirror(pipe(newInputs));
-  }, { immediate: options.immediate });
-  
-  onUnmounted(() => {
-    unsub?.();
-  });
+// === Vue Composables for AsyncResult ===
 
-  return resultRef;
-}
+/**
+ * Makes a ref to the given AsyncResult. Whenever the state of the AsyncResult changes,
+ * the ref gets retriggered, making those changes visible to Vue's reactivity system.
+ * 
+ * @param asyncResult the result to make reactive
+ * @returns the ref to the result
+ */
+export function useAsyncResultRef<T, E extends ErrorBase = ErrorBase>(asyncResult: AsyncResult<T, E>) {
+    const state = ref<AsyncResult<T, E>>(asyncResult) as Ref<AsyncResult<T, E>>;
 
-export function useAsyncResultRefFromPromise<T, E>(promise: Promise<Result<T, E>>) {
-  return useAsyncResultRef(AsyncResult.fromResultPromise(promise));
-}
-
-export type Action<T,E> = () => Promise<Result<T, E>>;
-export function useImmediateAction<T, E>(action: Action<T, E>): Ref<AsyncResult<T, E>> {
-  return useAsyncResultRefFromPromise(action());
-}
-export interface LazyActionReturn<T, E> {
-  resultRef: Ref<AsyncResult<T, E>>;
-  trigger: () => void;
-}
-
-export function useLazyAction<T, E>(action: Action<T, E>): LazyActionReturn<T, E> {
-  const result = new AsyncResult<T, E>();
-  const resultRef = useAsyncResultRef(result);
-
-  const trigger = () => {
-    result.updateFromResultPromise(action());
-  }
-
-  return { resultRef, trigger };
-}
-
-export function useReactiveAction<I, O, E>(input: I | Ref<I> | (() => I), pipe: FlatChainFunction<I, O, E>, options:{ immediate: boolean } = { immediate: true }): Ref<AsyncResult<O, E>> {
-  const source = typeof input === 'function' ? computed(input as () => I) : toRef(input)
-
-  const outputRef = ref<AsyncResult<O, E>>(new AsyncResult()) as Ref<AsyncResult<O, E>>;
-  let unsub: (() => void) | null = null;
-
-  watch(source, () => {
-    unsub?.();
-    const newOutput = pipe(source.value);
-    unsub = newOutput.listen((newState) => {
-      outputRef.value.setState(newState.state);
-      triggerRef(outputRef);
+    const unsub = asyncResult.listen(() => {
+        triggerRef(state);
     });
-  }, { immediate: options.immediate });
 
-  onUnmounted(() => {
-    unsub?.();
-  });
+    onUnmounted(() => {
+        unsub();
+    });
 
-  return outputRef;
+    return state;
 }
 
-export function useGenerator<T>(generatorFunc: () => Generator<AsyncResult<any, any>, T, any>): Ref<AsyncResult<T, any>> {
-  const resultRef = useAsyncResultRef(AsyncResult.run(generatorFunc));
-  return resultRef;
+/**
+ * Creates an AsyncResult ref from a promise returning a Result.
+ * @param promise the promise returning a Result
+ * @returns the ref to the AsyncResult
+ */
+export function useAsyncResultRefFromPromise<T, E extends ErrorBase = ErrorBase>(promise: Promise<Result<T, E>>) {
+    return useAsyncResultRef(AsyncResult.fromResultPromise(promise));
 }
 
-export function useLazyGenerator<T>(generatorFunc: () => Generator<AsyncResult<any, any>, T, any>): { resultRef: Ref<AsyncResult<T, any>>, trigger: () => void } {
-  const result = new AsyncResult<T, any>();
-  const resultRef = useAsyncResultRef(result);
 
-  const trigger = () => {
-    result.runInPlace(generatorFunc);
-  }
 
-  return { resultRef, trigger };
+// === Vue Composables for Chains ===
+
+/**
+ * Watches a source, gives it as inputs to the function provided, and updates the result contained in the ref accordingly.
+ * 
+ * @param source the inputs to react to
+ * @param pipe the function to run when the inputs change
+ * @param options optional settings
+ * @returns ref to the result
+ */
+export function useReactiveChain<Inputs, T, E extends ErrorBase = ErrorBase>(source: WatchSource<Inputs>, pipe: FlatChainStep<Inputs, T, E>, options: ReactiveProcessOptions = { immediate: true }): Ref<AsyncResult<T, E>> {
+    const result = new AsyncResult<T, E>();
+    const resultRef = useAsyncResultRef(result);
+
+    let unsub: (() => void) | null = null;
+
+    watch(source, (newInputs) => {
+        unsub?.();
+        unsub = result.mirror(pipe(newInputs));
+    }, { immediate: options.immediate });
+
+    onUnmounted(() => {
+        unsub?.();
+    });
+
+    return resultRef;
 }
 
-export function useReactiveGenerator<T, E, Inputs>(source: WatchSource<Inputs>, generatorFunc: (args: Inputs) => Generator<AsyncResult<any, any>, T, any>, options:{ immediate: boolean } = { immediate: true }): Ref<AsyncResult<T, E>> {
-  const resultRef = useAsyncResultRef(new AsyncResult<T, E>());
 
-  watch(source, (newInputs) => {
-    resultRef.value.runInPlace(() => generatorFunc(newInputs));
-  }, { immediate: options.immediate });
+// === Vue Composables for Actions ===
 
-  return resultRef;
+/**
+ * The return type of useLazyAction.
+ */
+export interface LazyActionRef<T, E extends ErrorBase = ErrorBase> {
+    resultRef: Ref<AsyncResult<T, E>>;
+    trigger: () => void;
+}
+
+/**
+ * Executes an action immediately and returns a ref to the AsyncResult representing the action's state.
+ * 
+ * Same as useAsyncResultRefFromPromise(action()).
+ * 
+ * @param action the action to execute immediately
+ * @returns a ref to the AsyncResult representing the action's state
+ */
+export function useAction<T, E extends ErrorBase = ErrorBase>(action: Action<T, E>): Ref<AsyncResult<T, E>> {
+    return useAsyncResultRefFromPromise(action());
+}
+
+/**
+ * Creates a lazy action that can be triggered manually.
+ * 
+ * Same as AsyncResult.makeLazyAction(action), but the AsyncResult is wrapped in a ref for Vue reactivity.
+ * 
+ * @param action the action to execute when triggered
+ * @returns an object containing a ref to the AsyncResult and a trigger function
+ */
+export function useLazyAction<T, E extends ErrorBase = ErrorBase>(action: Action<T, E>): LazyActionRef<T, E> {
+    const lazyAction = AsyncResult.makeLazyAction<T, E>(action);
+    const resultRef = useAsyncResultRef(lazyAction.result);
+
+    return { resultRef, trigger: lazyAction.trigger };
+}
+
+
+// === Vue Composables for Generators ===
+
+/**
+ * Runs a generator function immediately and returns a ref to the AsyncResult representing the generator's state.
+ * @param generatorFunc the generator function to run immediately
+ * @returns a ref to the AsyncResult representing the generator's state
+ */
+export function useGenerator<T>(generatorFunc: () => AsyncResultGenerator<T>): Ref<AsyncResult<T, any>> {
+    const resultRef = useAsyncResultRef(AsyncResult.run(generatorFunc));
+    return resultRef;
+}
+
+/**
+ * Creates a lazy generator that can be triggered manually.
+ * 
+ * @param generatorFunc the generator function to run when triggered
+ * @returns an object containing a ref to the AsyncResult and a trigger function
+ */
+export function useLazyGenerator<T>(generatorFunc: () => AsyncResultGenerator<T>): { resultRef: Ref<AsyncResult<T, any>>, trigger: () => void } {
+    const result = new AsyncResult<T, any>();
+    const resultRef = useAsyncResultRef(result);
+
+    const trigger = () => {
+        result.runInPlace(generatorFunc);
+    }
+
+    return { resultRef, trigger };
+}
+
+/**
+ * Watches a source, gives it as inputs to the generator function provided, and updates the result contained in the ref accordingly.
+ * 
+ * @param source the inputs to react to
+ * @param generatorFunc the generator function to run when the inputs change
+ * @param options optional settings
+ * @returns ref to the result
+ */
+export function useReactiveGenerator<Inputs, T, E extends ErrorBase = ErrorBase>(source: WatchSource<Inputs>, generatorFunc: (args: Inputs) => AsyncResultGenerator<T>, options: ReactiveProcessOptions = { immediate: true }): Ref<AsyncResult<T, E>> {
+    const resultRef = useAsyncResultRef(new AsyncResult<T, E>());
+
+    watch(source, (newInputs) => {
+        resultRef.value.runInPlace(() => generatorFunc(newInputs));
+    }, { immediate: options.immediate });
+
+    return resultRef;
 }
