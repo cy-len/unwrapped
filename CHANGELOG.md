@@ -1,5 +1,11 @@
 # unwrapped
 
+## 0.1.2
+
+### Patch Changes
+
+- a40ab5a: added src to npmignore
+
 ## 0.1.1
 
 ### Patch Changes
