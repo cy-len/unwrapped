@@ -17,5 +17,10 @@
     "noEmit": true,
     /* If your code runs in the DOM: */
     "lib": ["es2022", "dom", "dom.iterable"],
-  }
+    "baseUrl": ".",
+    "paths": {
+      "unwrapped/core": ["./src/core/index.ts"]
+    }
+  },
+  "include": ["src"]
 }
