@@ -1,5 +1,6 @@
 .changeset/
 .github/
+src/
 .DS_Store
 tsconfig.json
 tsup.config.core.ts
