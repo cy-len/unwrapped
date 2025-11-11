@@ -5,17 +5,41 @@
         "access": "public"
     },
     "license": "MIT",
-    "main": "dist/index.js",
-    "module": "dist/index.mjs",
-    "types": "dist/index.d.ts",
+    "main": "./dist/core/index.js",
+    "module": "./dist/core/index.mjs",
+    "types": "./dist/core/index.d.ts",
+    "exports": {
+        "./core": {
+            "types": "./dist/core/index.d.ts",
+            "import": "./dist/core/index.mjs",
+            "require": "./dist/core/index.js"
+        },
+        "./vue": {
+            "types": "./dist/vue/index.d.ts",
+            "import": "./dist/vue/index.mjs",
+            "require": "./dist/vue/index.js"
+        },
+        "./package.json": "./package.json"
+    },
     "scripts": {
-        "build": "tsup index.ts --format cjs,esm --dts",
+        "build": "npm run build:core && npm run build:vue",
+        "build:core": "tsup --config tsup.config.core.ts",
+        "build:vue": "tsup --config tsup.config.vue.ts",
         "release": "npm run build && changeset publish",
         "lint": "tsc"
     },
     "devDependencies": {
         "@changesets/cli": "^2.29.7",
         "tsup": "^8.5.0",
-        "typescript": "^5.9.3"
+        "typescript": "^5.9.3",
+        "vue": "^3.5.24"
+    },
+    "peerDependencies": {
+        "vue": "^3.0.0"
+    },
+    "peerDependenciesMeta": {
+        "vue": {
+            "optional": true
+        }
     }
 }
