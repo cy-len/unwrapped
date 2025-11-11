@@ -1,0 +1,6 @@
+.changeset/
+.github/
+.DS_Store
+tsconfig.json
+tsup.config.core.ts
+tsup.config.vue.ts
