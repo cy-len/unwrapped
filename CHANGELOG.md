@@ -1,5 +1,11 @@
 # unwrapped
 
+## 0.1.4
+
+### Patch Changes
+
+- 5ca9991: Improved docs and added license.md
+
 ## 0.1.3
 
 ### Patch Changes
