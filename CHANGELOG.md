@@ -1,5 +1,11 @@
 # unwrapped
 
+## 0.1.5
+
+### Patch Changes
+
+- 50d5178: Improved beginning of docs
+
 ## 0.1.4
 
 ### Patch Changes
