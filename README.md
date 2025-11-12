@@ -9,11 +9,16 @@ A TypeScript library for elegant error handling and asynchronous state managemen
 - **Core**: Framework-agnostic utilities for managing results and async operations
 - **Vue**: Vue 3 composables and components for reactive async state management
 
+You can take a look at the Real world example section at the end of this document to see how Unwrapped can simplify your development.
+
+A brief comparison with other libraries can be found at the "Why Unwrapped ?" section at the end of the document.
+
 ## Installation
 
 ```bash
 npm install unwrapped
 ```
+
 
 ## Core Concepts
 
@@ -521,14 +526,304 @@ export const CustomLoader = buildCustomAsyncResultLoader({
 
 ## Real-World Examples
 
-TODO
+### Simple data fetching (Vue 3)
+
+#### **Without** Unwrapped
+
+```vue
+<template>
+    <div>
+        <!-- Manually handle each state -->
+        <div v-if="loading">Loading user...</div>
+        <div v-else-if="error" class="error">
+            Error: {{ error.message }}
+        </div>
+        <div v-else-if="user">
+            <h2>{{ user.name }}</h2>
+            <p>{{ user.email }}</p>
+        </div>
+    </div>
+</template>
+
+<script setup>
+import { ref, onMounted } from 'vue';
+
+// Need separate refs for each state
+const user = ref(null);
+const loading = ref(false);
+const error = ref(null);
+
+onMounted(async () => {
+    // Manually manage loading state
+    loading.value = true;
+    error.value = null;
+
+    try {
+        const response = await fetch('/api/user/1');
+        if (!response.ok) throw new Error('Failed to fetch');
+        user.value = await response.json();
+    } catch (e) {
+        // Manually handle errors
+        error.value = e;
+    } finally {
+        // Don't forget to set loading to false!
+        loading.value = false;
+    }
+});
+</script>
+```
+
+#### **With** Unwrapped
+
+```vue
+<template>
+    <div>
+        <!-- Single component handles all states automatically -->
+        <!-- You can make your own custom reusable version with buildCustomAsyncResultLoader to avoid repeating the loading and error slots -->
+        <AsyncResultLoader :result="userResult">
+            <template #loading>Loading user...</template>
+            
+            <template #error="{ error }">
+                <div class="error">Error: {{ error.message }}</div>
+            </template>
+            
+            <!-- Only renders when data is successfully loaded -->
+            <template #default="{ value: user }">
+                <h2>{{ user.name }}</h2>
+                <p>{{ user.email }}</p>
+            </template>
+        </AsyncResultLoader>
+    </div>
+</template>
+
+<script setup>
+import { AsyncResultLoader, useAction } from 'unwrapped/vue';
+import { Result, ErrorBase } from 'unwrapped/core';
+
+// Single composable handles loading, success, and error states automatically
+// No need for separate refs or manual state management
+const userResult = useAction(async () => 
+    Result.tryFunction(
+        async () => {
+            const response = await fetch('/api/user/1');
+            if (!response.ok) return Result.errTag("fetch_error", "response.ok is false");
+            return response.json();
+        },
+        (e) => new ErrorBase('unknown_fetch_error', 'Failed to load user', e)
+    )
+);
+
+// That's it! Loading state, error handling, and success state are all managed
+// userResult automatically transitions: idle -> loading -> success/error
+</script>
+```
+
+
+### Reactive search (Vue 3)
+
+#### **Without** Unwrapped
+
+```vue
+<template>
+    <div>
+        <input v-model="searchQuery" placeholder="Search users..." />
+        
+        <!-- Multiple loading states to manage -->
+        <div v-if="isSearching">Searching...</div>
+        <div v-else-if="isLoadingDetails">Loading user details...</div>
+        
+        <div v-if="searchError" class="error">{{ searchError }}</div>
+        <div v-if="detailsError" class="error">{{ detailsError }}</div>
+        
+        <div v-if="searchResults && !selectedUser">
+            <div v-for="user in searchResults" :key="user.id" 
+                @click="loadUserDetails(user.id)">
+                {{ user.name }}
+            </div>
+        </div>
+        
+        <div v-if="selectedUser">
+            <h2>{{ selectedUser.name }}</h2>
+            <p>Posts: {{ selectedUser.posts?.length || 0 }}</p>
+        </div>
+    </div>
+</template>
+
+<script setup>
+import { ref, watch } from 'vue';
+
+const searchQuery = ref('');
+const searchResults = ref(null);
+const selectedUser = ref(null);
+
+// Separate loading/error states for each operation
+const isSearching = ref(false);
+const isLoadingDetails = ref(false);
+const searchError = ref(null);
+const detailsError = ref(null);
+
+// Watch for search query changes
+watch(searchQuery, async (query) => {
+    if (!query) {
+        searchResults.value = null;
+        return;
+    }
+    
+    isSearching.value = true;
+    searchError.value = null;
+    
+    try {
+        const response = await fetch(`/api/users/search?q=${query}`);
+        searchResults.value = await response.json();
+    } catch (e) {
+        searchError.value = e.message;
+    } finally {
+        isSearching.value = false;
+    }
+});
+
+async function loadUserDetails(userId) {
+    isLoadingDetails.value = true;
+    detailsError.value = null;
+    
+    try {
+        // Chain two requests manually
+        const userRes = await fetch(`/api/users/${userId}`);
+        const user = await userRes.json();
+        
+        const postsRes = await fetch(`/api/posts?userId=${userId}`);
+        const posts = await postsRes.json();
+        
+        selectedUser.value = { ...user, posts };
+    } catch (e) {
+        detailsError.value = e.message;
+    } finally {
+        isLoadingDetails.value = false;
+    }
+}
+</script>
+```
+
+
+#### **With** Unwrapped
+
+```vue
+<template>
+  <div>
+    <input v-model="searchQuery" placeholder="Search users..." />
+    
+    <!-- Search results with automatic state management -->
+    <CustomAsyncResultLoader :result="searchResults">
+        <template #default="{ value: users }">
+            <div v-for="user in users" :key="user.id" 
+                @click="selectedUserId = user.id">
+            {{ user.name }}
+            </div>
+        </template>
+        
+        <template #idle>
+            <div>Enter a search query</div>
+        </template>
+    </CustomAsyncResultLoader>
+    
+    <!-- User details with chained operations -->
+    <CustomAsyncResultLoader v-if="selectedUserId" :result="userDetails">
+        <template #default="{ value: userData }">
+            <h2>{{ userData.user.name }}</h2>
+            <p>Email: {{ userData.user.email }}</p>
+            <p>Posts: {{ userData.posts.length }}</p>
+        </template>
+    </CustomAsyncResultLoader>
+  </div>
+</template>
+
+<script setup>
+import { ref } from 'vue';
+import { AsyncResultLoader, useReactiveChain, useReactiveGenerator } 
+  from 'unwrapped/vue';
+import { AsyncResult, ErrorBase } from 'unwrapped/core';
+import CustomAsyncResultLoader from 'src/your/own/component'; // Made with buildCustomAsyncResultLoader()
+
+const searchQuery = ref('');
+const selectedUserId = ref(null);
+
+// Automatically re-fetches when searchQuery changes
+// No need for manual watch() or state management
+const searchResults = useReactiveChain(
+    () => searchQuery.value, // Reactive source
+    (query) => {
+        // Return idle state if no query
+        if (!query) return AsyncResult.idle();
+        
+        // Otherwise fetch - loading/error states handled automatically
+        return AsyncResult.fromValuePromise(
+            fetch(`/api/users/search?q=${query}`).then(r => r.json())
+        );
+    },
+    { immediate: true }
+);
+
+// Generator syntax makes chaining multiple async operations elegant
+// Automatically re-runs when selectedUserId changes
+const userDetails = useReactiveGenerator(
+    () => selectedUserId.value, // Reactive source
+    function* (userId) {
+        if (!userId) return null;
+        
+        // yield* unwraps AsyncResults - if any fail, whole chain fails
+        // No manual error handling needed for each step!
+        const user = yield* AsyncResult.fromValuePromise(
+            fetch(`/api/users/${userId}`).then(r => r.json())
+        );
+        
+        const posts = yield* AsyncResult.fromValuePromise(
+            fetch(`/api/posts?userId=${userId}`).then(r => r.json())
+        );
+        
+        // Return combined result - automatically wrapped in success state
+        return { user, posts };
+    }
+);
+
+// That's it! No manual:
+// - loading state tracking
+// - error state tracking  
+// - try/catch blocks
+// - watch() cleanup
+// - state reset on new requests
+// All handled automatically by Unwrapped!
+</script>
+```
 
 ## Why Unwrapped ?
 
-Todo
+Traditional error handling in TypeScript relies on thrown errors with try/catch blocks. While this is great for "catstrophic failures" to make the whole app explode. This is great for simple scripts (which was, to be fair, the original intended purpose of JavaScript), but having your whole app panic because of a random JSON.parse() burried in your code is not ideal. Since the advent of Promises, this basic pattern basically became an absolute requirement for every serious app, and we're stuck developping complex apps with sub-par tools for handling the state of our asynchronous operations, having no really good way to track loading and error states provided by the language.Forgetting to set loading = false in a finally block, or missing an error case, are common sources of bugs. Complex async flows with multiple dependent operations become nested and difficult to follow.
 
-### Why not Effect ?
-todo
+Unwrapped addresses these pain points by making error handling explicit and composable through Result types, inspired by the more modern takes on these issues offered by newer languages/tools. A Result<T, E> forces you to acknowledge both success and error cases, with full type safety for both. For async operations, AsyncResult automatically manages the full lifecycle (idle → loading → success/error) so you don't need separate state variables. Generator syntax (yield*) lets you write complex async flows that read sequentially while remaining fully type-safe and composable.
+
+The goal is not to reinvent TypeScript or impose a new paradigm, but to reduce boilerplate and eliminate common error-handling bugs while staying close to familiar patterns. If you already use async/await and promises, Unwrapped feels natural—just more robust and explicit about errors.
+
+
+### Why not use Tanstack Query instead ?
+
+On the frontend, errors and pending states are encountered while fetching data. A very good library for this is Tanstack Query, which has versions for most front-end frameworks. It's great at handling what we talked about earlier, from the basics of loading and error states, to more advanced concepts like caching, invalidation, and retries. It's however not meant as a general purpose error handling mechanism and lacks a proper Result type able to be used in other contexts in your codebase, and instead leans on the thrown errors pattern. It's thus more focused on a very specific part of your frontend application.
+
+Unwrapped takes a more general approach, and instead of starting from the top (the useQuery primitive of Tanstack Query), starts from the bottom, with error and result types. These build primitives that can be easily built upon to compose features that catch up with the capabilities of Tanstack Query, especially via the framework specific bindings (`unwrapped/vue` for instance). Results and AsyncResults can be chained (via their `.chain()` and `.flatChain()` methods) for general synchronous or asynchronous computations that may fail at each step, and those chains can be written in a more imperative-looking way with the generators. These features get composed to allow the `KeyedAsyncCache` to perform automatically deduping, invalidations, and retries of any asynchronous operations, which can be easily used in your state management library of choice, like zustand or pinia. While Unwrapped is not yet at feature parity with Tanstack Query for the specific area it covers, its primitives are more composables and can be used in every context when needed. In fact, while first thought for front-end development, the `unwrapped/core` sub-module is pure typescript and can be used on the backend.
+
+### Why not use Effect instead ?
+
+Effect is an incredibly powerful library (that could even be called a framework) that has the ambition to "Fix TypeScript". It succeeds very well in this in its own way, but at the cost of almost becoming its own language. Some projects can benefit immensly from this, but it is overkill for simpler, smaller projects. Sometimes you just want your existing tools (TypeScript), but made a little more convenient, and that's where Unwrapped comes into play.
+
+Unwrapped draws a lot of inspiration from Effect and its concepts (especially for the generators) while trying to make them more accessible, with a much more minimal set of APIs. Unwrapped also aims to play nicely with the existing UI frameworks (React, Vue, etc...) by providing integrations that bring Unwrapped's features into the common way of writing apps in those frameworks. In short, it aims to bring some of Effect's concepts to the Vue/React/Svelte way of writing, without disrupting existing patterns.
+
+## Next planned features
+
+Unwrapped is in very active development and a lot of features are still planned, such as :
+- Abort and retries on AsyncResult
+- Better support for concurrency
+- Common utilities (like fetch()) using AsyncResult so you don't have to wrap them in a AsyncResult.fromValuePromise()
+- Debounce on relevant utilities
+
 
 ## API Reference
 
