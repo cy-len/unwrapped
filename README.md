@@ -1,10 +1,19 @@
 # Unwrapped
 
-A TypeScript library for elegant error handling and asynchronous state management, inspired by Rust's `Result` type and designed with Vue 3 integration in mind.
+A TypeScript library for handling more gracefully synchronous and asynchronous operations that can fail via Result types. Provides also utilities for caching and binding for popular web frameworks.
 
 ## Overview
 
-**Unwrapped** provides a robust alternative to `try/catch` blocks and promise chains, making error handling explicit, type-safe, and composable. It consists of two main parts:
+Error handling in TypeScript is fundamentally built around throwing exceptions and catching them with try/catch blocks. This works fine for simple scripts where an unexpected error should crash the program, but modern applications—especially frontends—need to handle errors gracefully without crashing the entire app.
+
+**Unwrapped** provides a different approach by providing Result types, with variants for both synchronous and asynchronous operations.
+While their primary and most basic use are for describing the result of operations that may fail, they can be chained to describe chains of operations, with build-in short-circuiting when encoutering an error. These chains can be described either by successively calling methods like `.chain()`, or by using a generator syntax inspired by Effect (although much simplified).
+
+Without **Unwrapped**, the traditional approach leads to scattered state management: separate variables for loading, error, and data, manual state transitions, and the ever-present risk of forgetting to set loading = false in a finally block. Error types are unknown, forcing type assertions everywhere. Chaining multiple async operations that can each fail becomes a mess of nested try/catch blocks or promise chains with multiple .catch() handlers.
+
+On the contrary, **Unwrapped**'s AsyncResult type wraps loading, error, and success states in one type allowing for a much leaner and less error prone way of writing. Unsettled asynchronous operations will always give you an AsyncResult in a loading state, and when this work finishes, the AsyncResult will always be in a settled state, being either error or success.
+
+**Unwrapped** is composed of multiple sub-modules :
 
 - **Core**: Framework-agnostic utilities for managing results and async operations
 - **Vue**: Vue 3 composables and components for reactive async state management
@@ -18,6 +27,20 @@ A brief comparison with other libraries can be found at the "Why Unwrapped ?" se
 ```bash
 npm install unwrapped
 ```
+
+## API Reference
+
+### Core Module (`unwrapped/core`)
+
+- **`Result<T, E>`**: Synchronous result type
+- **`AsyncResult<T, E>`**: Asynchronous result with state tracking
+- **`ErrorBase`**: Base error class with structured logging
+- **`KeyedAsyncCache<P, V, E>`**: Cache for async operations
+
+### Vue Module (`unwrapped/vue`)
+
+- **Composables**: `useAsyncResultRef`, `useAction`, `useLazyAction`, `useReactiveChain`, `useGenerator`, `useLazyGenerator`, `useReactiveGenerator`
+- **Components**: `AsyncResultLoader`, `buildCustomAsyncResultLoader`
 
 
 ## Core Concepts
@@ -824,20 +847,6 @@ Unwrapped is in very active development and a lot of features are still planned,
 - Common utilities (like fetch()) using AsyncResult so you don't have to wrap them in a AsyncResult.fromValuePromise()
 - Debounce on relevant utilities
 
-
-## API Reference
-
-### Core Module (`unwrapped/core`)
-
-- **`Result<T, E>`**: Synchronous result type
-- **`AsyncResult<T, E>`**: Asynchronous result with state tracking
-- **`ErrorBase`**: Base error class with structured logging
-- **`KeyedAsyncCache<P, V, E>`**: Cache for async operations
-
-### Vue Module (`unwrapped/vue`)
-
-- **Composables**: `useAsyncResultRef`, `useAction`, `useLazyAction`, `useReactiveChain`, `useGenerator`, `useLazyGenerator`, `useReactiveGenerator`
-- **Components**: `AsyncResultLoader`, `buildCustomAsyncResultLoader`
 
 ## License
 
