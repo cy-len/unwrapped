@@ -1,0 +1,5 @@
+---
+"unwrapped": patch
+---
+
+Added AsyncResultList
