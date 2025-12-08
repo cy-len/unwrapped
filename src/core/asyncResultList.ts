@@ -45,6 +45,14 @@ export class AsyncResultList<T = any, E extends ErrorBase = ErrorBase> {
     }
 
     /**
+     * Gets all tasks in the list as an array of key-value pairs.
+     * Each pair contains the key and the corresponding AsyncResult.
+     */
+    get entries(): [string, AsyncResult<T, E>][] {
+        return Array.from(this._list.entries()).map(([key, item]) => [key, item.result]);
+    }
+
+    /**
      * Gets the current state of the AsyncResultList.
      */
     get state() {
@@ -104,6 +112,24 @@ export class AsyncResultList<T = any, E extends ErrorBase = ErrorBase> {
         return task;
     }
 
+    /**
+     * Removes a task from the list by its key.
+     * @param key the unique key of the task to remove
+     * @returns true if the task was removed, false if it was not found
+     */
+    remove(key: string): boolean {
+        const item = this._list.get(key);
+        if (!item) return false;
+
+        item.unsub();
+        this._list.delete(key);
+        this._onTaskFinished(); // We may have terminated the last loading task, so we need to update the state.
+        return true;
+    }
+
+    /**
+     * Clears all tasks from the list and sets the state to "all-settled".
+     */
     clear() {
         this._list.forEach(({ unsub }) => unsub());
         this._list.clear();
