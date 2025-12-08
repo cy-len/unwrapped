@@ -1,5 +1,11 @@
 # unwrapped
 
+## 0.1.8
+
+### Patch Changes
+
+- ba3d98f: Tweaks to AsyncResultList
+
 ## 0.1.7
 
 ### Patch Changes
