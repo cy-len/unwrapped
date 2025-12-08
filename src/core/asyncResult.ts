@@ -137,7 +137,16 @@ export class AsyncResult<T, E extends ErrorBase = ErrorBase> {
         throw new Error('Tried to unwrap an AsyncResult that is not successful');
     }
 
-
+    /**
+     * Returns the error value if the AsyncResult is in an error state, otherwise returns null.
+     * @returns the error value or null
+     */
+    unwrapErrorOrNull(): E | null {
+        if (this._state.status === 'error') {
+            return this._state.error;
+        }
+        return null;
+    }
 
     // === Creating/updating from settled values ===
 
@@ -590,7 +599,7 @@ export class AsyncResult<T, E extends ErrorBase = ErrorBase> {
 
 
     log(name?: string) {
-        const time = (new Date()).toTimeString().slice(0, 7);
+        const time = (new Date()).toTimeString().slice(0, 8);
         console.log(`${name ?? "<Anonymous AsyncResult>"} ; State at ${time} :`, this.state);
     }
 

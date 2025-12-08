@@ -1,5 +1,5 @@
 import { onUnmounted, ref, triggerRef, watch, type Ref, type WatchSource } from "vue";
-import { AsyncResult, ErrorBase, type Action, type AsyncResultGenerator, type FlatChainStep, type Result } from "unwrapped/core";
+import { AsyncResult, AsyncResultList, ErrorBase, type Action, type AsyncResultGenerator, type FlatChainStep, type Result } from "unwrapped/core";
 
 
 // === Vue specific types ===
@@ -19,7 +19,10 @@ interface ReactiveProcessOptions {
  * @param asyncResult the result to make reactive
  * @returns the ref to the result
  */
-export function useAsyncResultRef<T, E extends ErrorBase = ErrorBase>(asyncResult: AsyncResult<T, E>) {
+export function useAsyncResultRef<T, E extends ErrorBase = ErrorBase>(asyncResult?: AsyncResult<T, E>) {
+    if (!asyncResult) {
+        asyncResult = new AsyncResult<T, E>();
+    }
     const state = ref<AsyncResult<T, E>>(asyncResult) as Ref<AsyncResult<T, E>>;
 
     const unsub = asyncResult.listen(() => {
@@ -156,4 +159,26 @@ export function useReactiveGenerator<Inputs, T, E extends ErrorBase = ErrorBase>
     }, { immediate: options.immediate });
 
     return resultRef;
+}
+
+
+// === Vue Composables for AsyncResultList ===
+
+/**
+ * Creates a reactive AsyncResultList wrapped in a Vue ref.
+ * The AsyncResultList notifies Vue's reactivity system whenever its state changes.
+ * 
+ * @template T - The type of the values in the AsyncResultList.
+ * @template E - The type of the error, extending ErrorBase (default is ErrorBase).
+ * @returns a ref to the AsyncResultList
+ */
+export function useAsyncResultList<T = any, E extends ErrorBase = ErrorBase>() {
+    const list = new AsyncResultList<T, E>();
+    const listRef = ref(list);
+
+    list.listen(() => {
+        triggerRef(listRef);
+    });
+
+    return listRef;
 }
