@@ -1,5 +1,11 @@
 # unwrapped
 
+## 0.1.6
+
+### Patch Changes
+
+- 58d5299: Added AsyncResultList
+
 ## 0.1.5
 
 ### Patch Changes
