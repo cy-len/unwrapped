@@ -7,7 +7,7 @@ import type { Result } from "./result";
  */
 export type AsyncResultListState = "any-loading" | "all-settled";
 
-interface AsyncResultListItem<T = any, E extends ErrorBase = ErrorBase> {
+export interface AsyncResultListItem<T = any, E extends ErrorBase = ErrorBase> {
     key: string;
     result: AsyncResult<T, E>;
     unsub: () => void;
