@@ -1,5 +1,12 @@
 # unwrapped
 
+## 0.1.7
+
+### Patch Changes
+
+- 0a435ac: fixed exports
+- 5911174: Replaced AsyncResultLoader by factory function makeAsyncResultLoader
+
 ## 0.1.6
 
 ### Patch Changes
