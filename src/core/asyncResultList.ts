@@ -7,11 +7,17 @@ import type { Result } from "./result";
  */
 export type AsyncResultListState = "any-loading" | "all-settled";
 
+interface AsyncResultListItem<T = any, E extends ErrorBase = ErrorBase> {
+    key: string;
+    result: AsyncResult<T, E>;
+    unsub: () => void;
+}
+
 /**
  * A list that manages multiple AsyncResult instances, tracking their states and providing utilities to monitor them.
  */
 export class AsyncResultList<T = any, E extends ErrorBase = ErrorBase> {
-    private _list = new Map<string, AsyncResult<T, E>>();
+    private _list = new Map<string, AsyncResultListItem<T, E>>();
     private _listeners: Set<(taskQueue: AsyncResultList<T, E>) => void> = new Set();
     private _state: AsyncResultListState = "all-settled";
 
@@ -35,7 +41,7 @@ export class AsyncResultList<T = any, E extends ErrorBase = ErrorBase> {
      * Gets all tasks in the list as an array.
      */
     get items(): AsyncResult<T, E>[] {
-        return Array.from(this._list.values());
+        return Array.from(this._list.values()).map(i => i.result);
     }
 
     /**
@@ -78,23 +84,30 @@ export class AsyncResultList<T = any, E extends ErrorBase = ErrorBase> {
      * @returns the added AsyncResult task
      */
     add(key: string, task: AsyncResult<T, E>, removeOnSettle: boolean = true): AsyncResult<T, E> {
-        this._list.set(key, task);
-        this.state = "any-loading";
-
+        let unsub = null;
         if (removeOnSettle) {
-            task.listenUntilSettled((r) => {
+            unsub = task.listenUntilSettled((r) => {
                 if (r.isLoading() || r.isIdle()) return;
                 this._onTaskFinished();
                 this._list.delete(key);
-            }, true);
+            }, true)
         } else {
-            task.listen((r) => {
+            unsub = task.listen((r) => {
                 if (r.isLoading() || r.isIdle()) return;
                 this._onTaskFinished();
             }, true);
         }
 
+        this._list.set(key, { key, result: task, unsub });
+        this.state = "any-loading";
+
         return task;
+    }
+
+    clear() {
+        this._list.forEach(({ unsub }) => unsub());
+        this._list.clear();
+        this.state = "all-settled";
     }
 
     // === Querying tasks ===
@@ -104,8 +117,8 @@ export class AsyncResultList<T = any, E extends ErrorBase = ErrorBase> {
      * @returns true if any task is loading, false otherwise
      */
     anyLoading(): boolean {
-        for (const task of this._list.values()) {
-            if (task.isLoading()) {
+        for (const item of this._list.values()) {
+            if (item.result.isLoading()) {
                 return true;
             }
         }
@@ -119,9 +132,9 @@ export class AsyncResultList<T = any, E extends ErrorBase = ErrorBase> {
      */
     getAllFiltered(predicate: (task: AsyncResult<T, E>) => boolean): AsyncResult<T, E>[] {
         const filtered: AsyncResult<T, E>[] = [];
-        for (const task of this._list.values()) {
-            if (predicate(task)) {
-                filtered.push(task);
+        for (const item of this._list.values()) {
+            if (predicate(item.result)) {
+                filtered.push(item.result);
             }
         }
         return filtered;
@@ -135,9 +148,9 @@ export class AsyncResultList<T = any, E extends ErrorBase = ErrorBase> {
      */
     getAllFilteredAndMap<U>(filterPredicate: (task: AsyncResult<T, E>) => boolean, mapFunc: (task: AsyncResult<T, E>) => U): U[] {
         const results: U[] = [];
-        for (const task of this._list.values()) {
-            if (filterPredicate(task)) {
-                results.push(mapFunc(task));
+        for (const item of this._list.values()) {
+            if (filterPredicate(item.result)) {
+                results.push(mapFunc(item.result));
             }
         }
         return results;
