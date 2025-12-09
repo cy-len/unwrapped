@@ -5,21 +5,45 @@ import type { Result } from "./result";
 /**
  * The possible states of an AsyncResultList.
  */
-export type AsyncResultListState = "any-loading" | "all-settled";
+export type AsyncResultCollectionState = "any-loading" | "all-settled";
 
-export interface AsyncResultListItem<T = any, E extends ErrorBase = ErrorBase> {
+export interface AsyncResultCollectionItem<T = any, E extends ErrorBase = ErrorBase> {
     key: string;
     result: AsyncResult<T, E>;
     unsub: () => void;
 }
 
 /**
- * A list that manages multiple AsyncResult instances, tracking their states and providing utilities to monitor them.
+ * Manages a collection of AsyncResult tasks with state tracking and listener support.
+ * 
+ * This class provides a way to group multiple async operations, track their overall state
+ * (whether any are loading or all have settled), and react to state changes through listeners.
+ * 
+ * @template T - The success value type for all AsyncResult tasks in this collection
+ * @template E - The error type for all AsyncResult tasks, defaults to ErrorBase
+ * 
+ * @example
+ * ```typescript
+ * const collection = new AsyncResultCollection<User>();
+ * const userTask = new AsyncResult<User>();
+ * 
+ * collection.add('user-1', userTask);
+ * 
+ * collection.listen((taskQueue) => {
+ *   console.log('Collection state changed:', taskQueue.state);
+ * });
+ * ```
+ * 
+ * @remarks
+ * - Tasks can be automatically removed when they settle or kept in the collection
+ * - The collection state is either "any-loading" (at least one task is loading) or "all-settled" (no tasks loading)
+ * - Listeners are notified whenever the collection state changes
+ * - Use filtering methods to query tasks by their state (success, error, loading)
  */
-export class AsyncResultList<T = any, E extends ErrorBase = ErrorBase> {
-    private _list = new Map<string, AsyncResultListItem<T, E>>();
-    private _listeners: Set<(taskQueue: AsyncResultList<T, E>) => void> = new Set();
-    private _state: AsyncResultListState = "all-settled";
+export class AsyncResultCollection<T = any, E extends ErrorBase = ErrorBase> {
+    private _list = new Map<string, AsyncResultCollectionItem<T, E>>();
+    private _listeners: Set<(taskQueue: AsyncResultCollection<T, E>) => void> = new Set();
+    private _state: AsyncResultCollectionState = "all-settled";
 
     // === Getters ===
 
@@ -59,7 +83,7 @@ export class AsyncResultList<T = any, E extends ErrorBase = ErrorBase> {
         return this._state;
     }
 
-    private set state(s: AsyncResultListState) {
+    private set state(s: AsyncResultCollectionState) {
         this._state = s;
         this._listeners.forEach(f => f(this));
     }
@@ -75,11 +99,42 @@ export class AsyncResultList<T = any, E extends ErrorBase = ErrorBase> {
      * @param listener the function to call when the state changes
      * @returns a function to unsubscribe the listener
      */
-    listen(listener: (taskQueue: AsyncResultList<T, E>) => void) {
+    listen(listener: (taskQueue: AsyncResultCollection<T, E>) => void) {
         this._listeners.add(listener);
         return () => {
             this._listeners.delete(listener);
         };
+    }
+
+
+    /**
+     * Adds a listener that gets called whenever any item in the AsyncResultList succeeds.
+     * @param listener the function to call when an item succeeds
+     * @returns a function to unsubscribe the listener
+     */
+    onItemSuccess(listener: (task: AsyncResult<T, E>, key: string) => void) {
+        return this.listen((taskQueue) => {
+            for (const item of taskQueue._list.values()) {
+                if (item.result.isSuccess()) {
+                    listener(item.result, item.key);
+                }
+            }
+        });
+    }
+
+    /**
+     * Adds a listener that gets called whenever any item in the AsyncResultList errors.
+     * @param listener the function to call when an item errors
+     * @returns a function to unsubscribe the listener
+     */
+    onItemError(listener: (task: AsyncResult<T, E>, key: string) => void) {
+        return this.listen((taskQueue) => {
+            for (const item of taskQueue._list.values()) {
+                if (item.result.isError()) {
+                    listener(item.result, item.key);
+                }
+            }
+        });
     }
 
     // === Managing tasks ===

@@ -376,6 +376,58 @@ export class AsyncResult<T, E extends ErrorBase = ErrorBase> {
         return unsub;
     }
 
+    /**
+     * Adds a one-time listener that is called once the AsyncResult settles on a success.
+     * @param callback callback called once the AsyncResult settled on a success
+     * @returns A function to unsubscribe early
+     */
+    onSuccessOnce(callback: (value: T) => void) {
+        return this.listenUntilSettled((result) => {
+            if (result.isSuccess()) {
+                callback(result.unwrapOrThrow());
+            }
+        });
+    }
+
+    /**
+     * Adds a perpetual listener that is called every time the AsyncResult settles on a success.
+     * @param callback callback called every time the AsyncResult settles on a success
+     * @returns A function to unsubscribe
+     */
+    onSuccessPerpetual(callback: (value: T) => void) {
+        return this.listen((result) => {
+            if (result.isSuccess()) {
+                callback(result.unwrapOrThrow());
+            }
+        });
+    }
+
+    /**
+     * Adds a one-time listener that is called once the AsyncResult settles on an error.
+     * @param callback callback called once the AsyncResult settled on an error
+     * @returns A function to unsubscribe early
+     */
+    onErrorOnce(callback: (error: E) => void) {
+        return this.listenUntilSettled((result) => {
+            if (result.isError()) {
+                callback(result.unwrapErrorOrNull()!);
+            }
+        });
+    }
+
+    /**
+     * Adds a perpetual listener that is called every time the AsyncResult settles on an error.
+     * @param callback callback called every time the AsyncResult settles on an error
+     * @returns A function to unsubscribe
+     */
+    onErrorPerpetual(callback: (error: E) => void) {
+        return this.listen((result) => {
+            if (result.isError()) {
+                callback(result.unwrapErrorOrNull()!);
+            }
+        });
+    }
+
     // === Mirroring ===
 
     /**
