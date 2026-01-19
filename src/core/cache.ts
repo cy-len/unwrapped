@@ -172,4 +172,28 @@ export class KeyedAsyncCache<P, V, E extends ErrorBase = ErrorBase> {
             cacheItem.valid = false;
         }
     }
+
+    /**
+     * Gets all cache items.
+     * @returns an array of all cache items
+     */
+    get items() {
+        return Array.from(this._cache.values());
+    }
+
+    /**
+     * Gets the number of cache items.
+     * @returns the number of cache items
+     */
+    get size() {
+        return this._cache.size;
+    }
+
+    /**
+     * Gets all cache items with successful results.
+     * @returns an array of cache items with successful results
+     */
+    get successfulItems() {
+        return Array.from(this._cache.values()).filter(item => item.result.isSuccess());
+    }
 }
