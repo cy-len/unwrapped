@@ -1,5 +1,11 @@
 # unwrapped
 
+## 0.1.10
+
+### Patch Changes
+
+- 43b4f87: Added utility functions in KeyedAsyncCache
+
 ## 0.1.9
 
 ### Patch Changes
