@@ -1,5 +1,11 @@
 # unwrapped
 
+## 0.1.14
+
+### Patch Changes
+
+- 1150da3: added notifyProgress to generator
+
 ## 0.1.13
 
 ### Patch Changes
