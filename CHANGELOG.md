@@ -1,5 +1,11 @@
 # unwrapped
 
+## 0.1.12
+
+### Patch Changes
+
+- 4e5f239: Added progress in composables
+
 ## 0.1.11
 
 ### Patch Changes
