@@ -3,25 +3,25 @@ import { Result, type ResultState } from "./result";
 
 /**
  * Type representing the state of an AsyncResult.
- * It can be 'idle', 'loading' with a promise, or a settled ResultState (success or error).
+ * It can be 'idle', 'loading' with a promise and an optional progress information of type P, or a settled ResultState (success or error).
  */
-export type AsyncResultState<T, E extends ErrorBase = ErrorBase> =
+export type AsyncResultState<T, E extends ErrorBase = ErrorBase, P = unknown> =
     | { status: 'idle' }
-    | { status: 'loading'; promise: Promise<Result<T, E>> }
+    | { status: 'loading'; promise: Promise<Result<T, E>>; progress?: P }
     | ResultState<T, E>;
 
 
 /**
  * An Action is a function returning a Promise of a Result.
  */
-export type Action<T,E extends ErrorBase = ErrorBase> = () => Promise<Result<T, E>>;
+export type Action<T,E extends ErrorBase = ErrorBase, P = unknown> = (notifyProgress?: (progress: P) => void) => Promise<Result<T, E>>;
 
 /**
  * A LazyAction is an object containing a trigger function to start the action, and the AsyncResult representing the action's state.
  */
-export type LazyAction<T, E extends ErrorBase = ErrorBase> = {
+export type LazyAction<T, E extends ErrorBase = ErrorBase, P = unknown> = {
     trigger: () => void;
-    result: AsyncResult<T, E>;
+    result: AsyncResult<T, E, P>;
 };
 
 /**
@@ -38,7 +38,7 @@ export type ChainStep<I, O, E extends ErrorBase = ErrorBase> = (input: I) => Res
  * 
  * Used for flat-chaining operations on AsyncResult.
  */
-export type FlatChainStep<I, O, E extends ErrorBase = ErrorBase> = (input: I) => AsyncResult<O, E>;
+export type FlatChainStep<I, O, E extends ErrorBase = ErrorBase, P = unknown> = (input: I) => AsyncResult<O, E, P>;
 
 /**
  * Type representing a generator function that yields AsyncResult instances and returns a final value of type T.
@@ -50,7 +50,17 @@ export type AsyncResultGenerator<T> = Generator<AsyncResult<any, any>, T, any>;
 /**
  * Type representing a listener function for AsyncResult state changes.
  */
-export type AsyncResultListener<T, E extends ErrorBase = ErrorBase> = (result: AsyncResult<T, E>) => any;
+export type AsyncResultListener<T, E extends ErrorBase = ErrorBase, P = unknown> = (result: AsyncResult<T, E, P>) => any;
+
+export interface AsyncResultListenerOptions {
+    immediate?: boolean;
+    callOnProgressUpdates?: boolean;
+}
+
+interface AsyncResultListenerEntry<T, E extends ErrorBase, P> {
+    listener: AsyncResultListener<T, E, P>;
+    options: AsyncResultListenerOptions;
+}
 
 /**
  * Class representing the asynchronous result of an operation that can be idle, loading, successful, or failed.
@@ -58,12 +68,13 @@ export type AsyncResultListener<T, E extends ErrorBase = ErrorBase> = (result: A
  * @class AsyncResult
  * @template T - The type of the successful result value.
  * @template E - The type of the error, extending ErrorBase (default is ErrorBase).
+ * @template P - The type of the progress information for loading state (default is unknown).
  */
-export class AsyncResult<T, E extends ErrorBase = ErrorBase> {
-    private _state: AsyncResultState<T, E>;
-    private _listeners: Set<AsyncResultListener<T, E>> = new Set();
+export class AsyncResult<T, E extends ErrorBase = ErrorBase, P = unknown> {
+    private _state: AsyncResultState<T, E, P>;
+    private _listeners: Set<AsyncResultListenerEntry<T, E, P>> = new Set();
 
-    constructor(state?: AsyncResultState<T, E>) {
+    constructor(state?: AsyncResultState<T, E, P>) {
         this._state = state || { status: 'idle' };
     }
 
@@ -148,14 +159,31 @@ export class AsyncResult<T, E extends ErrorBase = ErrorBase> {
         return null;
     }
 
-    // === Creating/updating from settled values ===
-
-    private set state(newState: AsyncResultState<T, E>) {
-        this._state = newState;
-        this._listeners.forEach((listener) => listener(this));
+    /**
+     * Returns the progress information if the AsyncResult is in a loading state, otherwise returns null.
+     * @returns the progress information or null
+     */
+    getProgressOrNull(): P | null {
+        if (this._state.status === 'loading') {
+            return this._state.progress ?? null;
+        }
+        return null;
     }
 
-    private setState(newState: AsyncResultState<T, E>) {
+    // === Creating/updating from settled values ===
+
+    private set state(newState: AsyncResultState<T, E, P>) {
+        const oldState = this._state;
+
+        this._state = newState;
+        this._listeners.forEach((listenerEntry) => {
+            if ((oldState.status !== 'loading' || newState.status !== 'loading') || listenerEntry.options.callOnProgressUpdates) {
+                listenerEntry.listener(this)
+            }
+        });
+    }
+
+    private setState(newState: AsyncResultState<T, E, P>) {
         this.state = newState;
     }
 
@@ -210,6 +238,16 @@ export class AsyncResult<T, E extends ErrorBase = ErrorBase> {
         return this;
     }
 
+    /**
+     * Updates the progress information of the AsyncResult if it is currently loading.
+     * @param progress progress information to include in the loading state
+     */
+    updateProgress(progress: P) {
+        if (this._state.status === 'loading') {
+            this.state = { ...this._state, progress };
+        }
+        return this;
+    }
 
 
     // === Creating/updating from promises ===
@@ -258,7 +296,7 @@ export class AsyncResult<T, E extends ErrorBase = ErrorBase> {
      * Waits for the AsyncResult to settle (either success or error) if it is currently loading.
      * @returns itself once settled
      */
-    async waitForSettled(): Promise<AsyncResult<T, E>> {
+    async waitForSettled(): Promise<AsyncResult<T, E, P>> {
         if (this._state.status === 'loading') {
             try {
                 const value = await this._state.promise;
@@ -348,14 +386,16 @@ export class AsyncResult<T, E extends ErrorBase = ErrorBase> {
      * @param immediate whether to call the listener immediately with the current state (default is true)
      * @returns a function to remove the listener
      */
-    listen(listener: AsyncResultListener<T, E>, immediate = true) {
-        this._listeners.add(listener);
-        if (immediate) {
+    listen(listener: AsyncResultListener<T, E, P>, options: AsyncResultListenerOptions = { immediate: true, callOnProgressUpdates: true }) {
+        const entry: AsyncResultListenerEntry<T, E, P> = { listener, options };
+        this._listeners.add(entry);
+
+        if (options.immediate) {
             listener(this);
         }
 
         return () => {
-            this._listeners.delete(listener);
+            this._listeners.delete(entry);
         };
     }
 
@@ -365,13 +405,13 @@ export class AsyncResult<T, E extends ErrorBase = ErrorBase> {
      * @param immediate whether to call the listener immediately with the current state (default is true)
      * @returns a function to remove the listener
      */
-    listenUntilSettled(listener: AsyncResultListener<T, E>, immediate = true) {
+    listenUntilSettled(listener: AsyncResultListener<T, E, P>, options: AsyncResultListenerOptions = { immediate: true, callOnProgressUpdates: true }) {
         const unsub = this.listen((result) => {
             listener(result);
             if (result.state.status === 'success' || result.state.status === 'error') {
                 unsub();
             }
-        }, immediate);
+        }, options);
 
         return unsub;
     }
@@ -436,10 +476,10 @@ export class AsyncResult<T, E extends ErrorBase = ErrorBase> {
      * @param other the AsyncResult to mirror
      * @returns a function to stop mirroring
      */
-    mirror(other: AsyncResult<T, E>) {
+    mirror(other: AsyncResult<T, E, P>, options: AsyncResultListenerOptions = { immediate: true, callOnProgressUpdates: true }) {
         return other.listen((newState) => {
             this.setState(newState.state);
-        }, true);
+        }, options);
     }
 
     /**
@@ -448,14 +488,39 @@ export class AsyncResult<T, E extends ErrorBase = ErrorBase> {
      * @param other the AsyncResult to mirror
      * @returns a function to stop mirroring
      */
-    mirrorUntilSettled(other: AsyncResult<T, E>) {
+    mirrorUntilSettled(other: AsyncResult<T, E, P>, options: AsyncResultListenerOptions = { immediate: true, callOnProgressUpdates: true }) {
         return other.listenUntilSettled((newState) => {
             this.setState(newState.state);
-        }, true);
+        }, options);
     }
 
 
     // === Actions ===
+
+    /**
+     * Creates an AsyncResult from an Action.
+     * The AsyncResult is initially in a loading state, and updates to the settled state once the Action's promise resolves.
+     * If the Action's promise rejects, the AsyncResult is updated to an error state with a default ErrorBase.
+     * 
+     * Like AsyncResult.fromResultPromise, but for Actions.
+     * 
+     * @param action the Action to run to produce the AsyncResult
+     * @return an AsyncResult representing the state of the Action
+     */
+    static fromAction<T, E extends ErrorBase = ErrorBase, P = unknown>(action: Action<T, E, P>): AsyncResult<T, E, P> {
+        return new AsyncResult<T, E, P>().updateFromAction(action);
+    }
+
+    /**
+     * Updates the AsyncResult based on the given Action.
+     * Like AsyncResult.fromAction, but in place.
+     * @param action an action that will be called directly
+     * @returns itself
+     */
+    updateFromAction(action: Action<T, E, P>) {
+        const promise = action((progress) => this.updateProgress(progress));
+        return this.updateFromResultPromise(promise);
+    }
 
     /**
      * Creates a LazyAction that can be triggered to run the given Action.
@@ -465,7 +530,7 @@ export class AsyncResult<T, E extends ErrorBase = ErrorBase> {
     static makeLazyAction<T, E extends ErrorBase = ErrorBase>(action: Action<T, E>): LazyAction<T, E> {
         const result = new AsyncResult<T, E>();
         const trigger = () => {
-            result.updateFromResultPromise(action());
+            result.updateFromAction(action);
         };
 
         return { trigger, result };
@@ -580,7 +645,7 @@ export class AsyncResult<T, E extends ErrorBase = ErrorBase> {
      *     return result1 + result2;
      * }
      */
-    *[Symbol.iterator](): Generator<AsyncResult<T, E>, T, any> {
+    *[Symbol.iterator](): Generator<AsyncResult<T, E, P>, T, any> {
         yield this;
 
         if (this._state.status === 'success') {
@@ -625,9 +690,11 @@ export class AsyncResult<T, E extends ErrorBase = ErrorBase> {
      *     return value1 + value2;
      * }
      */
-    static run<T, E extends ErrorBase = ErrorBase>(generatorFunc: () => AsyncResultGenerator<T>): AsyncResult<T, E> {
-        const iterator = generatorFunc();
-        return AsyncResult.fromResultPromise<T, E>(AsyncResult._runGeneratorProcessor<T, E>(iterator)());
+    static run<T, E extends ErrorBase = ErrorBase, P = unknown>(generatorFunc: (notifyProgress?: (progress: P) => void) => AsyncResultGenerator<T>): AsyncResult<T, E, P> {
+        return AsyncResult.fromAction(async (notifyProgress?: (progress: P) => void) => {
+            const iterator = generatorFunc(notifyProgress);
+            return AsyncResult._runGeneratorProcessor<T, E>(iterator)();
+        });
     }
 
 
