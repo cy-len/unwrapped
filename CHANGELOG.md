@@ -1,5 +1,11 @@
 # unwrapped
 
+## 0.1.11
+
+### Patch Changes
+
+- b75c613: Added progress info on AsyncResult
+
 ## 0.1.10
 
 ### Patch Changes
