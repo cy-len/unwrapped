@@ -153,12 +153,12 @@ export class AsyncResultCollection<T = any, E extends ErrorBase = ErrorBase> {
                 if (r.isLoading() || r.isIdle()) return;
                 this._onTaskFinished();
                 this._list.delete(key);
-            }, true)
+            }, { immediate: true, callOnProgressUpdates: true });
         } else {
             unsub = task.listen((r) => {
                 if (r.isLoading() || r.isIdle()) return;
                 this._onTaskFinished();
-            }, true);
+            }, { immediate: true, callOnProgressUpdates: true });
         }
 
         this._list.set(key, { key, result: task, unsub });
