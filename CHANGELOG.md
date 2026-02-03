@@ -1,5 +1,11 @@
 # unwrapped
 
+## 0.1.13
+
+### Patch Changes
+
+- db39448: fixed type annotation in notifyProgress
+
 ## 0.1.12
 
 ### Patch Changes
