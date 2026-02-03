@@ -156,8 +156,6 @@ export function useReactiveGenerator<Inputs, T, E extends ErrorBase = ErrorBase,
 
     watch(source, (newInputs) => {
         resultRef.value.runInPlace((notifyProgress) => {
-            console.log("useReactiveGenerator - running generatorFunc with inputs:", newInputs);
-            console.log("useReactiveGenerator - notifyProgress function:", notifyProgress);
             return generatorFunc(newInputs, notifyProgress)
         });
     }, { immediate: options.immediate });
