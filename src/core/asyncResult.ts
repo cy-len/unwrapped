@@ -518,6 +518,8 @@ export class AsyncResult<T, E extends ErrorBase = ErrorBase, P = unknown> {
      * @returns itself
      */
     updateFromAction(action: Action<T, E, P>) {
+        console.log("===== updateFromAction called =====");
+        console.log("Action function:", action);
         const promise = action((progress) => this.updateProgress(progress));
         return this.updateFromResultPromise(promise);
     }
@@ -709,8 +711,11 @@ export class AsyncResult<T, E extends ErrorBase = ErrorBase, P = unknown> {
      * @param generatorFunc a generator function that yields AsyncResult instances
      */
     runInPlace(generatorFunc: (notifyProgress: (progress: P) => void) => AsyncResultGenerator<T>) {
+        console.log("===== runInPlace called =====");
+        console.log("Generator function:", generatorFunc);
         return this.updateFromAction((notify) => {
             const iterator = generatorFunc(notify);
+            console.log("Generator iterator:", iterator);
             return AsyncResult._runGeneratorProcessor<T, E>(iterator)();
         });
     }
