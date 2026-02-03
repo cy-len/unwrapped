@@ -14,7 +14,7 @@ export type AsyncResultState<T, E extends ErrorBase = ErrorBase, P = unknown> =
 /**
  * An Action is a function returning a Promise of a Result.
  */
-export type Action<T, E extends ErrorBase = ErrorBase, P = unknown> = (notifyProgress?: (progress: P) => void) => Promise<Result<T, E>>;
+export type Action<T, E extends ErrorBase = ErrorBase, P = unknown> = (notifyProgress: (progress: P) => void) => Promise<Result<T, E>>;
 
 /**
  * A LazyAction is an object containing a trigger function to start the action, and the AsyncResult representing the action's state.
@@ -690,8 +690,8 @@ export class AsyncResult<T, E extends ErrorBase = ErrorBase, P = unknown> {
      *     return value1 + value2;
      * }
      */
-    static run<T, E extends ErrorBase = ErrorBase, P = unknown>(generatorFunc: (notifyProgress?: (progress: P) => void) => AsyncResultGenerator<T>): AsyncResult<T, E, P> {
-        return AsyncResult.fromAction(async (notifyProgress?: (progress: P) => void) => {
+    static run<T, E extends ErrorBase = ErrorBase, P = unknown>(generatorFunc: (notifyProgress: (progress: P) => void) => AsyncResultGenerator<T>): AsyncResult<T, E, P> {
+        return AsyncResult.fromAction(async (notifyProgress: (progress: P) => void) => {
             const iterator = generatorFunc(notifyProgress);
             return AsyncResult._runGeneratorProcessor<T, E>(iterator)();
         });
@@ -708,7 +708,7 @@ export class AsyncResult<T, E extends ErrorBase = ErrorBase, P = unknown> {
      * 
      * @param generatorFunc a generator function that yields AsyncResult instances
      */
-    runInPlace(generatorFunc: (notifyProgress?: (progress: P) => void) => AsyncResultGenerator<T>) {
+    runInPlace(generatorFunc: (notifyProgress: (progress: P) => void) => AsyncResultGenerator<T>) {
         return this.updateFromAction((notify) => {
             const iterator = generatorFunc(notify);
             return AsyncResult._runGeneratorProcessor<T, E>(iterator)();
