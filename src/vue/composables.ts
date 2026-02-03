@@ -19,11 +19,11 @@ interface ReactiveProcessOptions {
  * @param asyncResult the result to make reactive
  * @returns the ref to the result
  */
-export function useAsyncResultRef<T, E extends ErrorBase = ErrorBase>(asyncResult?: AsyncResult<T, E>) {
+export function useAsyncResultRef<T, E extends ErrorBase = ErrorBase, P = unknown>(asyncResult?: AsyncResult<T, E, P>) {
     if (!asyncResult) {
-        asyncResult = new AsyncResult<T, E>();
+        asyncResult = new AsyncResult<T, E, P>();
     }
-    const state = ref<AsyncResult<T, E>>(asyncResult) as Ref<AsyncResult<T, E>>;
+    const state = ref<AsyncResult<T, E, P>>(asyncResult) as Ref<AsyncResult<T, E, P>>;
 
     const unsub = asyncResult.listen(() => {
         triggerRef(state);
@@ -81,8 +81,8 @@ export function useReactiveChain<Inputs, T, E extends ErrorBase = ErrorBase>(sou
 /**
  * The return type of useLazyAction.
  */
-export interface LazyActionRef<T, E extends ErrorBase = ErrorBase> {
-    resultRef: Ref<AsyncResult<T, E>>;
+export interface LazyActionRef<T, E extends ErrorBase = ErrorBase, P = unknown> {
+    resultRef: Ref<AsyncResult<T, E, P>>;
     trigger: () => void;
 }
 
@@ -94,8 +94,8 @@ export interface LazyActionRef<T, E extends ErrorBase = ErrorBase> {
  * @param action the action to execute immediately
  * @returns a ref to the AsyncResult representing the action's state
  */
-export function useAction<T, E extends ErrorBase = ErrorBase>(action: Action<T, E>): Ref<AsyncResult<T, E>> {
-    return useAsyncResultRefFromPromise(action());
+export function useAction<T, E extends ErrorBase = ErrorBase, P = unknown>(action: Action<T, E, P>): Ref<AsyncResult<T, E, P>> {
+    return useAsyncResultRef(AsyncResult.fromAction(action));
 }
 
 /**
@@ -106,8 +106,8 @@ export function useAction<T, E extends ErrorBase = ErrorBase>(action: Action<T, 
  * @param action the action to execute when triggered
  * @returns an object containing a ref to the AsyncResult and a trigger function
  */
-export function useLazyAction<T, E extends ErrorBase = ErrorBase>(action: Action<T, E>): LazyActionRef<T, E> {
-    const lazyAction = AsyncResult.makeLazyAction<T, E>(action);
+export function useLazyAction<T, E extends ErrorBase = ErrorBase, P = unknown>(action: Action<T, E, P>): LazyActionRef<T, E, P> {
+    const lazyAction = AsyncResult.makeLazyAction<T, E, P>(action);
     const resultRef = useAsyncResultRef(lazyAction.result);
 
     return { resultRef, trigger: lazyAction.trigger };
@@ -121,7 +121,7 @@ export function useLazyAction<T, E extends ErrorBase = ErrorBase>(action: Action
  * @param generatorFunc the generator function to run immediately
  * @returns a ref to the AsyncResult representing the generator's state
  */
-export function useGenerator<T>(generatorFunc: () => AsyncResultGenerator<T>): Ref<AsyncResult<T, any>> {
+export function useGenerator<T, P = unknown>(generatorFunc: (notifyProgress?: (progress: P) => void) => AsyncResultGenerator<T>): Ref<AsyncResult<T, any, P>> {
     const resultRef = useAsyncResultRef(AsyncResult.run(generatorFunc));
     return resultRef;
 }
@@ -132,8 +132,8 @@ export function useGenerator<T>(generatorFunc: () => AsyncResultGenerator<T>): R
  * @param generatorFunc the generator function to run when triggered
  * @returns an object containing a ref to the AsyncResult and a trigger function
  */
-export function useLazyGenerator<T>(generatorFunc: () => AsyncResultGenerator<T>): { resultRef: Ref<AsyncResult<T, any>>, trigger: () => void } {
-    const result = new AsyncResult<T, any>();
+export function useLazyGenerator<T, P = unknown>(generatorFunc: () => AsyncResultGenerator<T>): { resultRef: Ref<AsyncResult<T, any, P>>, trigger: () => void } {
+    const result = new AsyncResult<T, any, P>();
     const resultRef = useAsyncResultRef(result);
 
     const trigger = () => {
@@ -151,8 +151,8 @@ export function useLazyGenerator<T>(generatorFunc: () => AsyncResultGenerator<T>
  * @param options optional settings
  * @returns ref to the result
  */
-export function useReactiveGenerator<Inputs, T, E extends ErrorBase = ErrorBase>(source: WatchSource<Inputs>, generatorFunc: (args: Inputs) => AsyncResultGenerator<T>, options: ReactiveProcessOptions = { immediate: true }): Ref<AsyncResult<T, E>> {
-    const resultRef = useAsyncResultRef(new AsyncResult<T, E>());
+export function useReactiveGenerator<Inputs, T, E extends ErrorBase = ErrorBase, P = unknown>(source: WatchSource<Inputs>, generatorFunc: (args: Inputs) => AsyncResultGenerator<T>, options: ReactiveProcessOptions = { immediate: true }): Ref<AsyncResult<T, E, P>> {
+    const resultRef = useAsyncResultRef(new AsyncResult<T, E, P>());
 
     watch(source, (newInputs) => {
         resultRef.value.runInPlace(() => generatorFunc(newInputs));

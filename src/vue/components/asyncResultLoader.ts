@@ -2,8 +2,8 @@ import { defineComponent, watch, h, type VNode, type SlotsType } from "vue"
 import { ErrorBase, type AsyncResult } from "unwrapped/core"
 import { useAsyncResultRef } from "../composables"
 
-interface CustomSlots<E extends ErrorBase = ErrorBase> {
-    loading?: () => VNode;
+interface CustomSlots<E extends ErrorBase = ErrorBase, P = unknown> {
+    loading?: (props: { progress?: P }) => VNode;
     error?: (props: { error: E }) => VNode;
     idle?: () => VNode;
 }
@@ -29,16 +29,16 @@ interface CustomSlots<E extends ErrorBase = ErrorBase> {
  *   </template>
  * </MyLoader>
  */
-export function makeAsyncResultLoader<T, E extends ErrorBase = ErrorBase>(slots: CustomSlots<E>, name = "AsyncResultLoader") {
+export function makeAsyncResultLoader<T, E extends ErrorBase = ErrorBase, P = unknown>(slots: CustomSlots<E, P>, name = "AsyncResultLoader") {
     return defineComponent({
         name,
         props: {
             result: {
-                type: Object as () => AsyncResult<T, E>,
+                type: Object as () => AsyncResult<T, E, P>,
                 required: true
             }
         },
-        slots: Object as SlotsType<CustomSlots<E> & { default: { value: T } }>,
+        slots: Object as SlotsType<CustomSlots<E, P> & { default: { value: T } }>,
         setup(props, context) {
             let resultRef = useAsyncResultRef(props.result);
 
@@ -63,7 +63,7 @@ export function makeAsyncResultLoader<T, E extends ErrorBase = ErrorBase>(slots:
                 // Choose what to render based on status
                 switch (s.status) {
                     case "loading":
-                        return renderLoading();
+                        return renderLoading({ progress: s.progress });
 
                     case "error":
                         return renderError({ error: s.error });
