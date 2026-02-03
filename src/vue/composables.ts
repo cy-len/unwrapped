@@ -132,12 +132,12 @@ export function useGenerator<T, P = unknown>(generatorFunc: (notifyProgress?: (p
  * @param generatorFunc the generator function to run when triggered
  * @returns an object containing a ref to the AsyncResult and a trigger function
  */
-export function useLazyGenerator<T, P = unknown>(generatorFunc: () => AsyncResultGenerator<T>): { resultRef: Ref<AsyncResult<T, any, P>>, trigger: () => void } {
+export function useLazyGenerator<T, P = unknown>(generatorFunc: (notifyProgress: (progress: P) => void) => AsyncResultGenerator<T>): { resultRef: Ref<AsyncResult<T, any, P>>, trigger: () => void } {
     const result = new AsyncResult<T, any, P>();
     const resultRef = useAsyncResultRef(result);
 
     const trigger = () => {
-        result.runInPlace(generatorFunc);
+        result.runInPlace((notifyProgress) => generatorFunc(notifyProgress));
     }
 
     return { resultRef, trigger };
@@ -151,11 +151,11 @@ export function useLazyGenerator<T, P = unknown>(generatorFunc: () => AsyncResul
  * @param options optional settings
  * @returns ref to the result
  */
-export function useReactiveGenerator<Inputs, T, E extends ErrorBase = ErrorBase, P = unknown>(source: WatchSource<Inputs>, generatorFunc: (args: Inputs) => AsyncResultGenerator<T>, options: ReactiveProcessOptions = { immediate: true }): Ref<AsyncResult<T, E, P>> {
+export function useReactiveGenerator<Inputs, T, E extends ErrorBase = ErrorBase, P = unknown>(source: WatchSource<Inputs>, generatorFunc: (args: Inputs, notifyProgress: (progress: P) => void) => AsyncResultGenerator<T>, options: ReactiveProcessOptions = { immediate: true }): Ref<AsyncResult<T, E, P>> {
     const resultRef = useAsyncResultRef(new AsyncResult<T, E, P>());
 
     watch(source, (newInputs) => {
-        resultRef.value.runInPlace(() => generatorFunc(newInputs));
+        resultRef.value.runInPlace((notifyProgress) => generatorFunc(newInputs, notifyProgress));
     }, { immediate: options.immediate });
 
     return resultRef;
