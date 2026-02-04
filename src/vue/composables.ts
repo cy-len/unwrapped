@@ -57,8 +57,8 @@ export function useAsyncResultRefFromPromise<T, E extends ErrorBase = ErrorBase>
  * @param options optional settings
  * @returns ref to the result
  */
-export function useReactiveChain<Inputs, T, E extends ErrorBase = ErrorBase>(source: WatchSource<Inputs>, pipe: FlatChainStep<Inputs, T, E>, options: ReactiveProcessOptions = { immediate: true }): Ref<AsyncResult<T, E>> {
-    const result = new AsyncResult<T, E>();
+export function useReactiveChain<Inputs, T, E extends ErrorBase = ErrorBase, P = unknown>(source: WatchSource<Inputs>, pipe: FlatChainStep<Inputs, T, E, P>, options: ReactiveProcessOptions = { immediate: true }): Ref<AsyncResult<T, E, P>> {
+    const result = new AsyncResult<T, E, P>();
     const resultRef = useAsyncResultRef(result);
 
     let unsub: (() => void) | null = null;
