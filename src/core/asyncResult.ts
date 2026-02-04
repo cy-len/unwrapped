@@ -45,7 +45,7 @@ export type FlatChainStep<I, O, E extends ErrorBase = ErrorBase, P = unknown> = 
  * 
  * Used for running generators with AsyncResult.run().
  */
-export type AsyncResultGenerator<T> = Generator<AsyncResult<any, any>, T, any>;
+export type AsyncResultGenerator<T> = Generator<AsyncResult<any, any, any>, T, any>;
 
 /**
  * Type representing a listener function for AsyncResult state changes.
