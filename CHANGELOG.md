@@ -1,5 +1,11 @@
 # unwrapped
 
+## 0.1.17
+
+### Patch Changes
+
+- ed693cb: added progress type argument to useReactiveChain
+
 ## 0.1.16
 
 ### Patch Changes
