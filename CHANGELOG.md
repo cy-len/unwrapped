@@ -1,5 +1,11 @@
 # unwrapped
 
+## 0.1.18
+
+### Patch Changes
+
+- f11ab72: fixed type annotation to AsyncResultGenerator
+
 ## 0.1.17
 
 ### Patch Changes
