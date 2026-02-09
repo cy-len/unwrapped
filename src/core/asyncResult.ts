@@ -1,4 +1,5 @@
 import { ErrorBase } from "./error";
+import { DebounceStrategies } from "./internals/listenerWrappers";
 import { Result, type ResultState } from "./result";
 
 /**
@@ -49,12 +50,14 @@ export type AsyncResultGenerator<T> = Generator<AsyncResult<any, any, any>, T, a
 
 /**
  * Type representing a listener function for AsyncResult state changes.
+ * The listener receives the AsyncResult instance and the previous state (if available).
  */
-export type AsyncResultListener<T, E extends ErrorBase = ErrorBase, P = unknown> = (result: AsyncResult<T, E, P>) => any;
+export type AsyncResultListener<T, E extends ErrorBase = ErrorBase, P = unknown> = (result: AsyncResult<T, E, P>, oldState?: AsyncResultState<T, E, P>) => any;
 
 export interface AsyncResultListenerOptions {
     immediate?: boolean;
     callOnProgressUpdates?: boolean;
+    debounceLoadingMs?: number;
 }
 
 interface AsyncResultListenerEntry<T, E extends ErrorBase, P> {
@@ -178,7 +181,7 @@ export class AsyncResult<T, E extends ErrorBase = ErrorBase, P = unknown> {
         this._state = newState;
         this._listeners.forEach((listenerEntry) => {
             if ((oldState.status !== 'loading' || newState.status !== 'loading') || listenerEntry.options.callOnProgressUpdates) {
-                listenerEntry.listener(this)
+                listenerEntry.listener(this, oldState)
             }
         });
     }
@@ -387,6 +390,35 @@ export class AsyncResult<T, E extends ErrorBase = ErrorBase, P = unknown> {
      * @returns a function to remove the listener
      */
     listen(listener: AsyncResultListener<T, E, P>, options: AsyncResultListenerOptions = { immediate: true, callOnProgressUpdates: true }) {
+        let extraCleanup: (() => void) | null = null;
+        let timeoutId: any = null;
+
+        let strategy: AsyncResultListener<T, E, P>;
+
+        const wait = options.debounceLoadingMs ?? 0;
+
+        if (wait <= 0) {
+            strategy = (r, o) => DebounceStrategies.immediate(r, o, listener);
+        } else if (wait === Infinity) {
+            strategy = (r, o) => DebounceStrategies.ignoreLoading(r, o, listener);
+        } else {
+            const timedWrapper = DebounceStrategies.timed(wait);
+            extraCleanup = () => {
+                if (timeoutId !== null) {
+                    clearTimeout(timeoutId);
+                    timeoutId = null;
+                }
+            };
+            strategy = (r, o) =>
+                timedWrapper(
+                    r,
+                    o,
+                    listener,
+                    extraCleanup!,
+                    (id) => (timeoutId = id)
+                );
+        }
+
         const entry: AsyncResultListenerEntry<T, E, P> = { listener, options };
         this._listeners.add(entry);
 
@@ -395,6 +427,7 @@ export class AsyncResult<T, E extends ErrorBase = ErrorBase, P = unknown> {
         }
 
         return () => {
+            extraCleanup?.();
             this._listeners.delete(entry);
         };
     }
@@ -473,6 +506,7 @@ export class AsyncResult<T, E extends ErrorBase = ErrorBase, P = unknown> {
     /**
      * Mirrors the state of another AsyncResult into this one.
      * Whenever the other AsyncResult changes state, this AsyncResult is updated to match.
+     * When a debounceLoadingMs option is provided, this can be used to create a debounced version of an AsyncResult that only updates to loading after a certain delay, while still updating immediately for success and error states.
      * @param other the AsyncResult to mirror
      * @returns a function to stop mirroring
      */
@@ -606,9 +640,11 @@ export class AsyncResult<T, E extends ErrorBase = ErrorBase, P = unknown> {
      * @returns an AsyncResult containing either an array of successful values or the first encountered error
      */
     static ensureAvailable<R extends readonly AsyncResult<any, any>[]>(results: R): AsyncResult<{ [K in keyof R]: R[K] extends AsyncResult<infer T, any> ? T : never }, R[number] extends AsyncResult<any, infer E> ? E : never> {
+        type ReturnT = { [K in keyof R]: R[K] extends AsyncResult<infer T, any> ? T : never };
+        type ReturnE = R[number] extends AsyncResult<any, infer E> ? E : never;
+
         if (results.length === 0) {
-            // empty case — TS infers void tuple, so handle gracefully
-            return AsyncResult.ok(undefined as never);
+            return AsyncResult.ok([] as unknown as ReturnT) as unknown as AsyncResult<ReturnT, ReturnE>;
         }
 
         const promise = Promise.all(results.map((r) => r.waitForSettled())).then(
@@ -619,18 +655,13 @@ export class AsyncResult<T, E extends ErrorBase = ErrorBase, P = unknown> {
                     }
                 }
 
-                const values = settledResults.map((r) => r.unwrapOrNull()!) as {
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    [K in keyof R]: R[K] extends AsyncResult<infer T, any>
-                    ? T
-                    : never;
-                };
+                const values = settledResults.map((r) => r.unwrapOrNull()!) as ReturnT;
 
                 return Result.ok(values);
             }
         );
 
-        return AsyncResult.fromResultPromise(promise);
+        return AsyncResult.fromResultPromise(promise) as AsyncResult<ReturnT, ReturnE>;
     }
 
     // === Generator support ===
