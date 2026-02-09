@@ -1,5 +1,11 @@
 # unwrapped
 
+## 0.1.19
+
+### Patch Changes
+
+- f842523: added oldState and debounce strategies in listeners
+
 ## 0.1.18
 
 ### Patch Changes
