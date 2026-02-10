@@ -1,5 +1,11 @@
 # unwrapped
 
+## 0.1.21
+
+### Patch Changes
+
+- f21bc5c: Added toDebounced method
+
 ## 0.1.20
 
 ### Patch Changes
