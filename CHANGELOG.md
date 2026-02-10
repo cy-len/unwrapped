@@ -1,5 +1,11 @@
 # unwrapped
 
+## 0.1.20
+
+### Patch Changes
+
+- 954ba6a: Added derivedGenerator
+
 ## 0.1.19
 
 ### Patch Changes
