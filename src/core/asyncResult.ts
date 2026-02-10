@@ -65,6 +65,11 @@ interface AsyncResultListenerEntry<T, E extends ErrorBase, P> {
     options: AsyncResultListenerOptions;
 }
 
+interface ParentalLink<T, E extends ErrorBase, P> {
+    parent: AsyncResult<T, E, P>;
+    stopListening: () => void;
+}
+
 /**
  * Class representing the asynchronous result of an operation that can be idle, loading, successful, or failed.
  * Provides methods for listening to state changes, updating state, chaining operations, and converting to and from promises.
@@ -76,6 +81,7 @@ interface AsyncResultListenerEntry<T, E extends ErrorBase, P> {
 export class AsyncResult<T, E extends ErrorBase = ErrorBase, P = unknown> {
     private _state: AsyncResultState<T, E, P>;
     private _listeners: Set<AsyncResultListenerEntry<T, E, P>> = new Set();
+    private _parentalLink: ParentalLink<any, any, any> | null = null; // For derived results
 
     constructor(state?: AsyncResultState<T, E, P>) {
         this._state = state || { status: 'idle' };
@@ -501,6 +507,17 @@ export class AsyncResult<T, E extends ErrorBase = ErrorBase, P = unknown> {
         });
     }
 
+    protected setParentalLink<TP, EP extends ErrorBase, PP>(parent: AsyncResult<TP, EP, PP>, stopListening: () => void) {
+        this._parentalLink = { parent, stopListening };
+    }
+
+    detachFromParent() {
+        if (this._parentalLink) {
+            this._parentalLink.stopListening();
+            this._parentalLink = null;
+        }
+    }
+
     // === Mirroring ===
 
     /**
@@ -526,6 +543,35 @@ export class AsyncResult<T, E extends ErrorBase = ErrorBase, P = unknown> {
         return other.listenUntilSettled((newState) => {
             this.setState(newState.state);
         }, options);
+    }
+
+
+    // === Derived results ===
+
+
+    /**
+     * Creates a new AsyncResult that listens to this AsyncResult and runs the given generator function whenever this AsyncResult changes to a successful state.
+     * @param generatorFunc the generator to run when the parent changed to a successful state
+     */
+    derivedGenerator<T2, E2 extends ErrorBase = ErrorBase, P2 = unknown>(generatorFunc: (input: T, notifyProgress: (progress: P2) => void) => AsyncResultGenerator<T2>): AsyncResult<T2, E | E2, P | P2> {
+        return AsyncResult.derivedFromParent(this, generatorFunc);
+    }
+
+    protected static derivedFromParent<T, E extends ErrorBase, P, T2, E2 extends ErrorBase, P2>(
+        parent: AsyncResult<T, E, P>,
+        generatorFunc: (parentResult: T, notifyProgress: (progress: P2) => void) => AsyncResultGenerator<T2>,
+    ): AsyncResult<T2, E | E2, P | P2> {
+        const result = new AsyncResult<T2, E | E2, P | P2>();
+        const unsub = parent.listen((parent) => {
+            const state = parent.state;
+            if (state.status === 'success') {
+                result.runInPlace((notifyProgress) => generatorFunc(state.value, notifyProgress));
+            } else {
+                result.setState(state as AsyncResultState<T2, E | E2, P | P2>); // Ignore type check as T is not relevant when not in success, and E is compatible with E | E2
+            }
+        });
+        result.setParentalLink(parent, unsub);
+        return result;
     }
 
 
