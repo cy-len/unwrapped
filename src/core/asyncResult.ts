@@ -528,9 +528,12 @@ export class AsyncResult<T, E extends ErrorBase = ErrorBase, P = unknown> {
      * @returns a function to stop mirroring
      */
     mirror(other: AsyncResult<T, E, P>, options: AsyncResultListenerOptions = { immediate: true, callOnProgressUpdates: true }) {
-        return other.listen((newState) => {
+        const unsub = other.listen((newState) => {
             this.setState(newState.state);
         }, options);
+        this.setParentalLink(other, unsub);
+
+        return unsub;
     }
 
     /**
@@ -540,9 +543,23 @@ export class AsyncResult<T, E extends ErrorBase = ErrorBase, P = unknown> {
      * @returns a function to stop mirroring
      */
     mirrorUntilSettled(other: AsyncResult<T, E, P>, options: AsyncResultListenerOptions = { immediate: true, callOnProgressUpdates: true }) {
-        return other.listenUntilSettled((newState) => {
+        const unsub = other.listenUntilSettled((newState) => {
             this.setState(newState.state);
         }, options);
+        this.setParentalLink(other, unsub);
+
+        return unsub;
+    }
+
+    /**
+     * Creates a debounced version of an AsyncResult that only updates to loading after a certain delay, while still updating immediately for success and error states.
+     * @param ms debounce time, can be Infinity for skipping loading states and always hold the previous settled value
+     * @returns the debounced AsyncResult
+     */
+    toDebounced(ms: number) {
+        const debouncedResult = new AsyncResult<T, E, P>();
+        debouncedResult.mirror(this, { debounceLoadingMs: ms });
+        return debouncedResult;
     }
 
 
