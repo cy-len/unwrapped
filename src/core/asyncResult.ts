@@ -558,7 +558,11 @@ export class AsyncResult<T, E extends ErrorBase = ErrorBase, P = unknown> {
      */
     toDebounced(ms: number) {
         const debouncedResult = new AsyncResult<T, E, P>();
-        debouncedResult.mirror(this, { debounceLoadingMs: ms });
+        debouncedResult.mirror(this, {
+            immediate: true,
+            callOnProgressUpdates: true,
+            debounceLoadingMs: ms
+        });
         return debouncedResult;
     }
 
