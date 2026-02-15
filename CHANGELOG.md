@@ -1,5 +1,11 @@
 # unwrapped
 
+## 0.1.22
+
+### Patch Changes
+
+- 1ced3fc: fix: fixed toDebounced
+
 ## 0.1.21
 
 ### Patch Changes
