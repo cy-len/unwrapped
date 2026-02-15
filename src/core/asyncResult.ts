@@ -425,7 +425,10 @@ export class AsyncResult<T, E extends ErrorBase = ErrorBase, P = unknown> {
                 );
         }
 
-        const entry: AsyncResultListenerEntry<T, E, P> = { listener, options };
+        const entry: AsyncResultListenerEntry<T, E, P> = {
+            listener: strategy,
+            options
+        };
         this._listeners.add(entry);
 
         if (options.immediate) {
