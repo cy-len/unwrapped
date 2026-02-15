@@ -1,5 +1,11 @@
 # unwrapped
 
+## 0.1.23
+
+### Patch Changes
+
+- e360ea4: fix: fixed DebounceStrategies in AsyncResult.listen
+
 ## 0.1.22
 
 ### Patch Changes
