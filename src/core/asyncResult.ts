@@ -102,7 +102,7 @@ export class AsyncResult<T, E extends ErrorBase = ErrorBase, P = unknown> {
      * Checks if the AsyncResult is successful.
      * @returns whether or not the result is successful
      */
-    isSuccess() {
+    isSuccess(): this is AsyncResult<T, E, P> & { state: { status: 'success'; value: T } } {
         return this._state.status === 'success';
     }
 
@@ -110,7 +110,7 @@ export class AsyncResult<T, E extends ErrorBase = ErrorBase, P = unknown> {
      * Checks if the AsyncResult is an error.
      * @returns whether or not the result is an error
      */
-    isError() {
+    isError(): this is AsyncResult<T, E, P> & { state: { status: 'error'; error: E } } {
         return this._state.status === 'error';
     }
 
@@ -118,7 +118,7 @@ export class AsyncResult<T, E extends ErrorBase = ErrorBase, P = unknown> {
      * Checks if the AsyncResult is idle.
      * @returns whether or not the result is idle
      */
-    isIdle() {
+    isIdle(): this is AsyncResult<T, E, P> & { state: { status: 'idle' } } {
         return this._state.status === 'idle';
     }
 
@@ -126,7 +126,7 @@ export class AsyncResult<T, E extends ErrorBase = ErrorBase, P = unknown> {
      * Checks if the AsyncResult is loading.
      * @returns whether or not the result is loading
      */
-    isLoading() {
+    isLoading(): this is AsyncResult<T, E, P> & { state: { status: 'loading'; promise: Promise<Result<T, E>>; progress?: P } } {
         return this._state.status === 'loading';
     }
 
