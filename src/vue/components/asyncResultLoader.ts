@@ -2,7 +2,7 @@ import { defineComponent, watch, h, type VNode, type SlotsType } from "vue"
 import { ErrorBase, type AsyncResult } from "unwrapped/core"
 import { useAsyncResultRef } from "../composables"
 
-interface CustomSlots<E extends ErrorBase = ErrorBase, P = unknown> {
+export interface CustomSlots<E extends ErrorBase = ErrorBase, P = unknown> {
     loading?: (props: { progress?: P }) => VNode;
     error?: (props: { error: E }) => VNode;
     idle?: () => VNode;
