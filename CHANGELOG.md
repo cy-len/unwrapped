@@ -1,5 +1,12 @@
 # unwrapped
 
+## 0.1.24
+
+### Patch Changes
+
+- fdf85c6: Made CustomSlots public
+- 52d6995: fix: added type predicates to isSuccess() and similar
+
 ## 0.1.23
 
 ### Patch Changes
