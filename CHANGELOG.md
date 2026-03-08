@@ -1,5 +1,11 @@
 # unwrapped
 
+## 0.1.25
+
+### Patch Changes
+
+- be7d29f: Export custom slots
+
 ## 0.1.24
 
 ### Patch Changes
